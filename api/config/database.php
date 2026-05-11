@@ -1,9 +1,7 @@
 <?php
-// Autorisations CORS (Indispensables pour qu'Angular puisse lire cette API)
-header("Access-Control-Allow-Origin: *"); // En production, remplacer * par l'URL de ton site Angular
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
-header("Content-Type: application/json; charset=UTF-8");
+namespace Api\Database;
+
+Use PDO;
 
 class Database {
     private static $instance = null;
