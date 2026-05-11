@@ -59,4 +59,33 @@ abstract class BaseController {
             'message' => $message
         ], $statusCode);
     }
+
+    /**
+     * Renvoie les informations de l'utilisateur si le jeton est valide.
+     */
+    protected function requireAuth(): array {
+        // On cherche l'en-tête "Authorization" envoyé par Angular
+        $headers = apache_request_headers();
+        
+        // Sécurité pour AlwaysData / Nginx
+        $authHeader = $headers['Authorization'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+
+        // On vérifie la présence du mot "Bearer " (Porteur)
+        if (!preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+            $this->sendError("Accès refusé. Jeton d'authentification manquant ou mal formaté.", 401);
+        }
+
+        // On extrait le jeton pur (sans le mot "Bearer ")
+        $token = $matches[1];
+
+        // On demande à notre outil utilitaire de valider la cryptographie
+        $payload = \Api\Utils\JwtUtils::validateToken($token);
+
+        if (!$payload) {
+            $this->sendError("Accès refusé. Jeton invalide, trafiqué ou expiré.", 401);
+        }
+
+        // Si on arrive ici, l'utilisateur a le droit d'entrer !
+        return $payload;
+    }
 }
