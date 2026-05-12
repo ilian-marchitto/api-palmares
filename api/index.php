@@ -2,6 +2,29 @@
 
 use Api\Controllers\AuthController;
 
+spl_autoload_register(function ($class) {
+    // Le préfixe de ton namespace (Api)
+    $prefix = 'Api\\';
+    
+    // Le dossier racine de ton API (là où se trouve index.php)
+    $base_dir = __DIR__ . '/';
+
+    // Est-ce que la classe utilise bien notre namespace "Api\" ?
+    $len = strlen($prefix);
+    if (strncmp($prefix, $class, $len) !== 0) {
+        return; 
+    }
+
+    // On retire "Api\" et on remplace les antislashs par des slashs
+    $relative_class = substr($class, $len);
+    $file = $base_dir . str_replace('\\', '/', $relative_class) . '.php';
+
+    // Si le fichier existe, on le charge !
+    if (file_exists($file)) {
+        require $file;
+    }
+});
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     header("Access-Control-Allow-Origin: *");
     header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
