@@ -1,5 +1,7 @@
 <?php 
 
+require_once __DIR__ . '/Database/Database.php';
+
 use Api\Controllers\AuthController;
 
 spl_autoload_register(function ($class) {
