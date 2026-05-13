@@ -2,56 +2,63 @@
 
 namespace Api\Controllers;
 
+/**
+ * Contrôleur abstrait principal (BaseController).
+ * Fournit le socle commun à tous les contrôleurs de l'API.
+ * Il centralise la lecture des requêtes entrantes, la sécurisation des réponses (CORS, JSON),
+ * et agit comme un pare-feu d'authentification (Middleware) via JWT.
+ * * @package Api\Controllers
+ */
 abstract class BaseController {
 
-
+    /**
+     * Lit et décode le corps (payload) de la requête HTTP entrante.
+     *
+     * @return array Les données décodées sous forme de tableau associatif. Retourne un tableau vide si le JSON est absent ou invalide.
+     */
     protected function getJsonInput(): array {
         $input = file_get_contents("php://input");
         $decoded = json_decode($input, true);
         
-        // Si le JSON est invalide ou vide, on renvoie un tableau vide
         return is_array($decoded) ? $decoded : [];
     }
 
     /**
-     * Envoie la réponse finale au format JSON avec le bon code de statut HTTP.
+     * Formate et expédie une réponse HTTP propre au format JSON, puis arrête le script.
+     * Cette méthode garantit l'intégrité de l'API : elle nettoie les tampons de sortie
+     * pour éviter que des avertissements PHP (Warnings) ne viennent corrompre le format JSON renvoyé au client.
+     *
+     * @param mixed $data       Les données à sérialiser.
+     * @param int   $statusCode Le code d'état HTTP de la réponse (ex: 200 OK, 201 Created, 404 Not Found). Défaut: 200.
+     * @return void Cette méthode termine l'exécution du script (exit) et ne retourne rien.
      */
     protected function sendJson(mixed $data, int $statusCode = 200): void {
-        // Nettoyage : On vide tout ce qui aurait pu être affiché avant
+        // Nettoyage des tampons pour garantir un JSON pur
         if (ob_get_length()) {
             ob_clean();
         }
 
-        // Les Headers CORS et Content-Type
+        // Configuration des en-têtes (CORS et Type de contenu)
         header_remove(); 
-        header("Access-Control-Allow-Origin: *"); // À restreindre en prod
+        header("Access-Control-Allow-Origin: *"); 
         header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
         header("Access-Control-Allow-Headers: Content-Type, Authorization");
         header("Content-Type: application/json; charset=UTF-8");
 
-        // Définition du code HTTP (ex: 
-            // 400 pour mauvaise requête, 
-            // 401 pour non autorisé, 
-            // 403 pour interdit,
-            // 404 pour non trouvé, 
-            // 201 pour créé, 200 pour succès, 
-            // 500 pour erreur serveur, 
-            // 501 pour non implémenté,
-            // 502 pour erreur de passerelle,
-            // 503 pour service indisponible,  
-            // 504 pour timeout,  
-            // etc.)
         http_response_code($statusCode);
 
-        // Conversion et envoi
         echo json_encode($data);
-        
-        // On arrête le script pour être sûr que rien d'autre ne s'affiche
         exit;
     }
 
     /**
-     * Raccourci pour renvoyer une erreur standardisée
+     * Raccourci utilitaire pour renvoyer une erreur standardisée.
+     * Construit une structure JSON prévisible `{"statut": "erreur", "message": "..."}` 
+     * et envoie une réponse HTTP avec le code d'erreur approprié.
+     *
+     * @param string $message    Le message d'erreur explicite à afficher à l'utilisateur.
+     * @param int    $statusCode Le code d'état HTTP d'erreur (ex: 400 Bad Request, 401 Unauthorized). Défaut: 400.
+     * @return void
      */
     protected function sendError(string $message, int $statusCode = 400): void {
         $this->sendJson([
@@ -61,31 +68,30 @@ abstract class BaseController {
     }
 
     /**
-     * Renvoie les informations de l'utilisateur si le jeton est valide.
+     * Pare-feu d'authentification : valide le jeton JWT de la requête courante.
+     * Lit l'en-tête HTTP `Authorization`, extrait le jeton "Bearer" et valide sa signature cryptographique.
+     * Si l'utilisateur n'est pas connecté, le jeton manquant ou expiré, la requête est instantanément 
+     * rejetée avec une erreur 401.
+     *
+     * @return array Le payload du jeton (contenant généralement 'id_utilisateur' et 'role').
+     * Note : Ne retourne jamais null, car le script est interrompu en cas d'échec.
      */
     protected function requireAuth(): array {
-        // On cherche l'en-tête "Authorization" envoyé par Angular
         $headers = apache_request_headers();
         
-        // Sécurité pour AlwaysData / Nginx
         $authHeader = $headers['Authorization'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? '';
 
-        // On vérifie la présence du mot "Bearer " (Porteur)
         if (!preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
             $this->sendError("Accès refusé. Jeton d'authentification manquant ou mal formaté.", 401);
         }
 
-        // On extrait le jeton pur (sans le mot "Bearer ")
         $token = $matches[1];
-
-        // On demande à notre outil utilitaire de valider la cryptographie
         $payload = \Api\Utils\JwtUtils::validateToken($token);
 
         if (!$payload) {
             $this->sendError("Accès refusé. Jeton invalide, trafiqué ou expiré.", 401);
         }
 
-        // Si on arrive ici, l'utilisateur a le droit d'entrer !
         return $payload;
     }
 }
